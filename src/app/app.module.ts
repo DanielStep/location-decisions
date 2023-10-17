@@ -4,11 +4,13 @@ import { HttpClientModule } from '@angular/common/http';
 
 import { AppComponent } from './app.component';
 import { LocationDecisionsMapComponent } from './location-decisions-map/location-decisions-map.component';
+import { PolygonsComponent } from './polygons/polygons.component';
 
 @NgModule({
   declarations: [
     AppComponent,
-    LocationDecisionsMapComponent
+    LocationDecisionsMapComponent,
+    PolygonsComponent
   ],
   imports: [
     BrowserModule,
