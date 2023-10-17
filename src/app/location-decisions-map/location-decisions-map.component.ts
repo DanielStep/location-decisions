@@ -1,5 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Component, AfterViewInit } from '@angular/core';
+import { MapDataService } from '../map-data.service';
+import { Shape } from './shape.model';
 import * as leaflet from 'leaflet';
 import { forkJoin } from 'rxjs';
 
@@ -11,7 +13,10 @@ import { forkJoin } from 'rxjs';
 export class LocationDecisionsMapComponent implements AfterViewInit {
   private map!: leaflet.Map;
 
-  constructor(private http: HttpClient) {}
+  constructor(
+    private http: HttpClient,
+    private mapDataService: MapDataService
+  ) {}
 
   ngAfterViewInit(): void {
     this.initMap();
@@ -37,26 +42,8 @@ export class LocationDecisionsMapComponent implements AfterViewInit {
   }
 
   private fetchPolygons(): void {
-    const shapesApiUrl = 'http://geo-exercise.id.com.au/api/geo';
-    const coloursApiUrl = 'http://geo-exercise.id.com.au/api/data';
-
-    forkJoin({
-      shapes: this.http.get<{ shapes: any[] }>(shapesApiUrl),
-      colours: this.http.get<{ data: any[] }>(coloursApiUrl),
-    }).subscribe(
-      ({ shapes: shapesResponse, colours }) => {
-        const shapes = shapesResponse.shapes.map((shape) => {
-          const colourData = colours.data.find(
-            (colour) => colour.GeoID === shape.id
-          );
-          return {
-            id: shape.id,
-            points: this.decodePoints(shape.points),
-            colour: colourData ? colourData.color : '#FFFFFF',
-            infoBox: colourData.InfoBox,
-          };
-        });
-
+    this.mapDataService.fetchMapData().subscribe(
+      (shapes) => {
         this.addPolygons(shapes);
       },
       (error) => {
@@ -66,12 +53,7 @@ export class LocationDecisionsMapComponent implements AfterViewInit {
   }
 
   private addPolygons(
-    shapes: {
-      id: string;
-      points: leaflet.LatLng[];
-      colour: string;
-      infoBox: any;
-    }[]
+    shapes: Shape[]
   ): void {
     shapes.forEach((shape) => {
       const polygon = leaflet
@@ -95,56 +77,12 @@ export class LocationDecisionsMapComponent implements AfterViewInit {
       });
 
       polygon.on('mouseover', (e) => {
-        popup.setLatLng(e.latlng)
-             .setContent(infoContent)
-             .openOn(this.map);
+        popup.setLatLng(e.latlng).setContent(infoContent).openOn(this.map);
       });
 
       polygon.on('mouseout', () => {
         this.map.closePopup();
       });
-      
     });
-  }
-
-  private decodePoints(encoded: string): leaflet.LatLng[] {
-    var len = String(encoded).length;
-    var index = 0;
-    var ar = [];
-    var lat = 0;
-    var lng = 0;
-
-    try {
-      while (index < len) {
-        var b;
-        var shift = 0;
-        var result = 0;
-        do {
-          b = encoded.charCodeAt(index++) - 63;
-          result |= (b & 0x1f) << shift;
-          shift += 5;
-        } while (b >= 0x20);
-
-        var dlat = result & 1 ? ~(result >> 1) : result >> 1;
-        lat += dlat;
-
-        shift = 0;
-        result = 0;
-        do {
-          b = encoded.charCodeAt(index++) - 63;
-          result |= (b & 0x1f) << shift;
-          shift += 5;
-        } while (b >= 0x20);
-
-        var dlng = result & 1 ? ~(result >> 1) : result >> 1;
-        lng += dlng;
-
-        ar.push(leaflet.latLng(lng * 1e-5, lat * 1e-5));
-      }
-    } catch (ex) {
-      //error in encoding.
-    }
-
-    return ar;
   }
 }
