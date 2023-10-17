@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Component, AfterViewInit } from '@angular/core';
 import * as leaflet from 'leaflet';
+import { forkJoin } from 'rxjs';
 
 @Component({
   selector: 'location-decisions-map',
@@ -36,32 +37,41 @@ export class LocationDecisionsMapComponent implements AfterViewInit {
   }
 
   private fetchPolygons(): void {
-    const apiUrl = 'http://geo-exercise.id.com.au/api/geo';
+    const shapesApiUrl = 'http://geo-exercise.id.com.au/api/geo';
+    const coloursApiUrl = 'http://geo-exercise.id.com.au/api/data';
 
-    this.http.get<{ shapes: any[] }>(apiUrl).subscribe(
-      (response) => {
-        const shapes = response.shapes.map((shape) => ({
-          id: shape.id,
-          points: this.decodePoints(shape.points),
-        }));
 
+    forkJoin({
+      shapes: this.http.get<{ shapes: any[] }>(shapesApiUrl),
+      colours: this.http.get<{ data: any[] }>(coloursApiUrl),
+    }).subscribe(
+      ({ shapes: shapesResponse, colours }) => {
+        const shapes = shapesResponse.shapes.map(shape => {
+
+          const colourData = colours.data.find(colour => colour.GeoID === shape.id);
+          return {
+            id: shape.id,
+            points: this.decodePoints(shape.points),
+            colour: colourData ? colourData.color : '#FFFFFF'
+          };
+        });
+        
         this.addPolygons(shapes);
       },
       (error) => {
-        console.error('An error occurred retrieving the polygon data:', error);
+        console.error('An error occurred:', error);
       }
     );
   }
 
-  private addPolygons(shapes: any[]): void {
+  private addPolygons(shapes: { id: string, points: leaflet.LatLng[], colour: string }[]): void {
     shapes.forEach((shape) => {
-      console.log('Polygon coordinates:', shape.points);
       const polygon = leaflet
         .polygon(shape.points, {
-          color: '#000000',     // black outline
-          weight: 2,            // 2 pixels wide
-          fillColor: '#ff0000', // red fill
-          fillOpacity: 0.5      // semi-transparent
+          fillColor: shape.colour,
+          fillOpacity: 0.5,
+          color: '#000000',
+          weight: 1,
         })
         .addTo(this.map);
       polygon.bindPopup(shape.id);
