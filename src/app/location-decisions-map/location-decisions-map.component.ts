@@ -40,22 +40,23 @@ export class LocationDecisionsMapComponent implements AfterViewInit {
     const shapesApiUrl = 'http://geo-exercise.id.com.au/api/geo';
     const coloursApiUrl = 'http://geo-exercise.id.com.au/api/data';
 
-
     forkJoin({
       shapes: this.http.get<{ shapes: any[] }>(shapesApiUrl),
       colours: this.http.get<{ data: any[] }>(coloursApiUrl),
     }).subscribe(
       ({ shapes: shapesResponse, colours }) => {
-        const shapes = shapesResponse.shapes.map(shape => {
-
-          const colourData = colours.data.find(colour => colour.GeoID === shape.id);
+        const shapes = shapesResponse.shapes.map((shape) => {
+          const colourData = colours.data.find(
+            (colour) => colour.GeoID === shape.id
+          );
           return {
             id: shape.id,
             points: this.decodePoints(shape.points),
-            colour: colourData ? colourData.color : '#FFFFFF'
+            colour: colourData ? colourData.color : '#FFFFFF',
+            infoBox: colourData.InfoBox,
           };
         });
-        
+
         this.addPolygons(shapes);
       },
       (error) => {
@@ -64,7 +65,14 @@ export class LocationDecisionsMapComponent implements AfterViewInit {
     );
   }
 
-  private addPolygons(shapes: { id: string, points: leaflet.LatLng[], colour: string }[]): void {
+  private addPolygons(
+    shapes: {
+      id: string;
+      points: leaflet.LatLng[];
+      colour: string;
+      infoBox: any;
+    }[]
+  ): void {
     shapes.forEach((shape) => {
       const polygon = leaflet
         .polygon(shape.points, {
@@ -74,7 +82,28 @@ export class LocationDecisionsMapComponent implements AfterViewInit {
           weight: 1,
         })
         .addTo(this.map);
-      polygon.bindPopup(shape.id);
+
+      const infoContent = `
+        <strong>SA1:</strong> ${shape.infoBox.SA1}<br>
+        <strong>Number:</strong> ${shape.infoBox.Number}<br>
+        <strong>Percent (%):</strong> ${shape.infoBox['Percent (%)']}<br>
+        <strong>Total pop:</strong> ${shape.infoBox['Total pop']}
+      `;
+
+      const popup = leaflet.popup({
+        maxWidth: 300,
+      });
+
+      polygon.on('mouseover', (e) => {
+        popup.setLatLng(e.latlng)
+             .setContent(infoContent)
+             .openOn(this.map);
+      });
+
+      polygon.on('mouseout', () => {
+        this.map.closePopup();
+      });
+      
     });
   }
 
